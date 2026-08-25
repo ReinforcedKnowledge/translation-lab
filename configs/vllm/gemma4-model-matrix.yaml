@@ -1,0 +1,7 @@
+model: RedHatAI/gemma-4-31B-it-FP8-Dynamic
+tensor-parallel-size: 1
+max-model-len: 16384
+gpu-memory-utilization: 0.9
+max-num-seqs: 32
+max-num-batched-tokens: 16384
+generation-config: vllm

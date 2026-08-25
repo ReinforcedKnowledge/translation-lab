@@ -1,0 +1,28 @@
+#:schema https://www.schemastore.org/prek.json
+
+[[repos]]
+repo = "builtin"
+hooks = [
+    { id = "trailing-whitespace" },
+    { id = "end-of-file-fixer" },
+    { id = "check-added-large-files" },
+    { id = "check-case-conflict" },
+    { id = "check-json" },
+    { id = "check-merge-conflict" },
+    { id = "check-symlinks" },
+    { id = "check-toml" },
+    { id = "check-yaml" },
+    { id = "detect-private-key" },
+    { id = "mixed-line-ending" },
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+    { id = "uv-lock", name = "uv lock", entry = "uv lock --check", language = "system", pass_filenames = false, files = "^(pyproject\\.toml|uv\\.lock)$" },
+    { id = "ruff-check", name = "ruff check", entry = "uv run --locked ruff check --fix", language = "system", types = ["python"] },
+    { id = "ruff-format", name = "ruff format", entry = "uv run --locked ruff format", language = "system", types = ["python"] },
+    { id = "ty", name = "ty", entry = "uv run --locked ty check", language = "system", pass_filenames = false, always_run = true },
+    { id = "pyrefly", name = "pyrefly", entry = "uv run --locked pyrefly check", language = "system", pass_filenames = false, always_run = true },
+    { id = "pytest", name = "pytest", entry = "uv run --locked pytest", language = "system", pass_filenames = false, always_run = true, stages = ["pre-push"] },
+]

@@ -1,0 +1,7 @@
+model: Qwen/Qwen3.8-27B-FP8
+tensor-parallel-size: 1
+max-model-len: 16384
+gpu-memory-utilization: 0.9
+max-num-seqs: 32
+generation-config: vllm
+enable-prefix-caching: false

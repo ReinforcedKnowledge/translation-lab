@@ -1,0 +1,7 @@
+model: google/translategemma-27b-it
+tensor-parallel-size: 2
+max-model-len: 8192
+gpu-memory-utilization: 0.9
+max-num-seqs: 128
+max-num-batched-tokens: 32768
+generation-config: vllm

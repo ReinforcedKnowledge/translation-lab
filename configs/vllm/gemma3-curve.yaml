@@ -1,0 +1,5 @@
+model: RedHatAI/gemma-3-27b-it-FP8-dynamic
+tensor-parallel-size: 2
+max-model-len: 128000
+gpu-memory-utilization: 0.9
+max-num-seqs: 6

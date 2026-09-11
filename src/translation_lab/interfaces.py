@@ -162,6 +162,35 @@ def generation_parameters(
     return parameters
 
 
+def system_boundary_generation_parameters(model_key: str) -> dict[str, Any]:
+    if model_key == "gemma4":
+        return {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "seed": 42,
+            "extra_body": {
+                "add_special_tokens": False,
+                "top_k": 64,
+                "stop_token_ids": [1, 50, 106],
+            },
+        }
+    if model_key == "qwen3.8":
+        return {
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "seed": 42,
+            "presence_penalty": 1.5,
+            "extra_body": {
+                "add_special_tokens": False,
+                "top_k": 20,
+                "repetition_penalty": 1.0,
+                "stop_token_ids": [248046, 248044],
+                "chat_template_kwargs": {"enable_thinking": False},
+            },
+        }
+    raise ValueError("SB was retained only for Gemma 4 and Qwen3.8")
+
+
 def as_messages(value: Any) -> list[Message]:
     if not isinstance(value, list):
         raise TypeError("native input is not a message list")

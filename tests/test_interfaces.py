@@ -5,6 +5,7 @@ from translation_lab.interfaces import (
     generation_parameters,
     native_input,
     native_request,
+    system_boundary_generation_parameters,
 )
 from translation_lab.plans import TranslationUnit
 
@@ -75,3 +76,18 @@ def test_request_can_retain_a_curve_specific_output_ceiling() -> None:
         )["max_output_tokens"]
         == 512
     )
+
+
+def test_system_boundary_uses_the_retained_provider_sampling() -> None:
+    gemma = system_boundary_generation_parameters("gemma4")
+    qwen = system_boundary_generation_parameters("qwen3.8")
+
+    assert (gemma["temperature"], gemma["top_p"]) == (1.0, 0.95)
+    assert gemma["extra_body"]["top_k"] == 64
+    assert gemma["extra_body"]["stop_token_ids"] == [1, 50, 106]
+    assert (qwen["temperature"], qwen["top_p"], qwen["presence_penalty"]) == (
+        0.7,
+        0.8,
+        1.5,
+    )
+    assert qwen["extra_body"]["chat_template_kwargs"] == {"enable_thinking": False}

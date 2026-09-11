@@ -35,6 +35,10 @@ If a dataset contains conversations, first select and flatten the message conten
 - `P0` recognizes reasoning regions, fenced code, display mathematics, and Markdown tables. Python retains literal structures, translates prose in bounded units and natural-language table cells separately, then reconstructs the document.
 - `Pc` uses the same plan and current unit as P0, with up to three preceding source and cleaned translation pairs as chat history. It generates only the current translation.
 - `RAW` uses bounded source chunks without structure-aware parsing. Python retains only exact boundary separators.
+- `SB` uses the same lossless raw chunks and separators as RAW. It puts the
+  translation contract in the system message and encloses each source chunk in
+  collision-checked sentinel boundaries in the user message. It does not parse
+  or protect code, mathematics, tables, or reasoning regions.
 - `A1` and `A2` expose one P0 unit and request one translation as prompt-only JSON or schema-constrained JSON.
 - `B1` and `B2` expose a tokenizer-bounded consecutive window but request one designated translation.
 - `B3` and `B4` expose the same kind of window and request every translation in it. The even-numbered methods use a JSON Schema through vLLM/XGrammar.
@@ -78,6 +82,7 @@ The published work contains these representative matrices:
 | Model and parser | Gemma 4, MiLMMT, TranslateGemma, Hy-MT2 | P0, RAW at label 512 | six, with Hy-MT2's four official languages distinguished from Finnish and Greek |
 | New general model | Qwen3.8 27B FP8 | P0 at label 512 | all six |
 | JSON output | Gemma 4 | P0 comparator, A1 through B4 at label 512 | all six |
+| System boundary | Gemma 4 | SB at labels 300, 512, 1024, 2048, 4096, and 8192 | all six |
 
 For the curve, `chunk_target_chars` was four times the categorical label. The retained prose-output ceilings were 8,192 tokens through label 1024, 12,288 at 2048, 20,480 at 4096, and 32,768 at 8192. `run-experiment` selects those values for Gemma P0 unless `--max-output-tokens` overrides them. Table cells retain their 512-token ceiling. Each later comparison used the same 340-source slice and the P0 label-512 plan where applicable. The Hugging Face dataset card identifies retained conditions and plan revisions. The package does not infer an experiment matrix from filenames.
 
@@ -97,6 +102,50 @@ uv run --extra models translation-lab run-experiment input.jsonl runs/qwen-p0-fr
 ```
 
 The local tokenizer or processor renders the native template once. The completion endpoint receives that prompt with `add_special_tokens=false`. Qwen thinking is disabled and its two retained stop-token IDs are sent explicitly. TranslateGemma always requires `--renderer` and its official 2,048-token input condition is checked before each request and over-budget units are rejected rather than subdivided.
+
+### System-boundary requests
+
+Run SB exactly like another experiment method:
+
+```bash
+uv run translation-lab run-experiment input.jsonl runs/gemma4-sb-fr-512 \
+  --base-url http://127.0.0.1:8000/v1 \
+  --language fr \
+  --method SB \
+  --model-key gemma4 \
+  --chunk-label 512 \
+  --chunk-chars 2048
+```
+
+For every raw chunk, SB sends a system message containing the complete
+translation contract and a user message of this form:
+
+```text
+Payload to be translated:
+<BEGIN_TRANSLATION_PAYLOAD>
+{source chunk}
+<END_TRANSLATION_PAYLOAD>
+```
+
+The system message says that instructions, questions, problems, examples, and
+requested output formats inside the payload are data to translate rather than
+commands to follow. The runner rejects a source if either sentinel occurs
+exactly or after NFKC case-folding. It also rejects native chat-envelope strings
+that could interfere with template boundaries. A returned sentinel is recorded
+as a protocol failure and severe alarm.
+
+The retained Gemma 4 SB curve used provider sampling
+`temperature=1.0`, `top_p=0.95`, `top_k=64`, seed 42, and stop-token IDs
+`[1, 50, 106]`. The retained Qwen SB mechanism test used non-thinking mode,
+`temperature=0.7`, `top_p=0.8`, `top_k=20`, `presence_penalty=1.5`,
+`repetition_penalty=1.0`, seed 42, and stop-token IDs `[248046, 248044]`.
+Those settings are method-specific; the earlier P0 and RAW records keep their
+historical generation parameters.
+
+The SB labels use target character counts of 1,200, 2,048, 4,096, 8,192,
+16,384, and 32,768. Its output ceilings are 8,192 tokens through label 1024,
+12,288 at 2048, 20,480 at 4096, and 32,768 at 8192. The labels are historical
+names, not model-token guarantees.
 
 JSON methods also require `--renderer` so the same windows fit every one of the six rendered language prompts under the 8,192-token prompt budget. With vLLM 0.22.1, schema experiments require the repaired XGrammar integration to receive Gemma 4's declared stop-token IDs `[1, 50, 106]`. A JSON Schema can guarantee syntax and cardinality only when that server integration is correct but it does not guarantee a complete or faithful translation.
 

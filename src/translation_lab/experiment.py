@@ -23,6 +23,9 @@ from translation_lab.protocols import (
     json_requests,
     p0_request,
     parse_json_response,
+    system_boundary_leak,
+    system_boundary_request,
+    validate_system_boundary_source,
 )
 
 
@@ -119,6 +122,12 @@ async def _execute(
         )
         for index, value in translations.items()
     ]
+    if method == "SB":
+        for metrics, value in zip(translation_metrics, values, strict=True):
+            metrics["sentinel_leak"] = system_boundary_leak(value)
+            metrics["severe_composite"] = bool(metrics["severe_composite"]) or bool(
+                metrics["sentinel_leak"]
+            )
     evidence = RequestEvidence(
         source_id=source_id,
         model=model,
@@ -175,8 +184,9 @@ async def run_document(
             source_text,
             chunk_label=chunk_label,
             chunk_target_chars=chunk_target_chars,
+            method=method,
         )
-        if method == "RAW"
+        if method in {"RAW", "SB"}
         else p0_plan(
             source_id,
             source_text,
@@ -187,6 +197,8 @@ async def run_document(
     evidence: list[RequestEvidence] = []
     translations: dict[int, str] = {}
     units = plan["translation_units"]
+    if method == "SB":
+        validate_system_boundary_source(source_text)
 
     if method in JSON_ARMS:
         if token_count is None:
@@ -251,7 +263,14 @@ async def run_document(
     else:
         specifications = [
             (
-                native_request(
+                system_boundary_request(
+                    unit["unit_index"],
+                    language_code,
+                    unit,
+                    max_output_tokens=max_output_tokens or 8192,
+                )
+                if method == "SB"
+                else native_request(
                     model_spec,
                     language_code,
                     unit,
@@ -306,6 +325,12 @@ async def run_document(
     )
     if any(request.finish_reason == "length" for request in evidence):
         failures.append("finish_reason_length")
+    if any(
+        bool(item.get("sentinel_leak"))
+        for request in evidence
+        for item in request.translation_metrics
+    ):
+        failures.append("sentinel_leak")
     metrics = audit_translation(source_text, assembled, language_code)
     metrics["severe_composite"] = bool(failures) or any(
         bool(item.get("severe_composite"))

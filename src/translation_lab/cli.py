@@ -26,7 +26,11 @@ from translation_lab.experiment import (
     RequestEvidence,
     run_document,
 )
-from translation_lab.interfaces import MODEL_SPECS, generation_parameters
+from translation_lab.interfaces import (
+    MODEL_SPECS,
+    generation_parameters,
+    system_boundary_generation_parameters,
+)
 from translation_lab.io import append_jsonl, jsonl_ids, read_jsonl, write_jsonl
 from translation_lab.metrics import audit_translation, canonical_language
 from translation_lab.models import TranslationConfig
@@ -50,7 +54,9 @@ def _experiment_parser(subparsers: Any) -> None:
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--language", choices=["pl", "de", "fr", "es", "fi", "el"], required=True)
     parser.add_argument(
-        "--method", choices=["P0", "Pc", "RAW", "A1", "A2", "B1", "B2", "B3", "B4"], required=True
+        "--method",
+        choices=["P0", "Pc", "RAW", "SB", "A1", "A2", "B1", "B2", "B3", "B4"],
+        required=True,
     )
     parser.add_argument("--model-key", choices=sorted(MODEL_SPECS), default="gemma4")
     parser.add_argument("--model")
@@ -344,6 +350,8 @@ async def _experiment_rows(args: argparse.Namespace) -> int:
     spec = MODEL_SPECS[args.model_key]
     if args.method in {"Pc", "A1", "A2", "B1", "B2", "B3", "B4"} and args.model_key != "gemma4":
         raise ValueError(f"{args.method} was retained only with the Gemma 4 interface")
+    if args.method == "SB" and args.model_key not in {"gemma4", "qwen3.8"}:
+        raise ValueError("SB was retained only with Gemma 4 and Qwen3.8")
     if args.method in {"A1", "A2", "B1", "B2", "B3", "B4"} and args.renderer is None:
         raise ValueError("JSON methods require --renderer for exact tokenizer-aware windows")
     if args.model_key == "translategemma" and args.renderer is None:
@@ -363,7 +371,11 @@ async def _experiment_rows(args: argparse.Namespace) -> int:
     for row in retained_rows:
         validate_result(_result_from_dict(row))
 
-    parameters = generation_parameters(spec)
+    parameters = (
+        system_boundary_generation_parameters(args.model_key)
+        if args.method == "SB"
+        else generation_parameters(spec)
+    )
     extra_body = cast(dict[str, Any], parameters.pop("extra_body"))
     temperature = float(parameters.pop("temperature"))
     seed = int(parameters.pop("seed"))
@@ -373,7 +385,7 @@ async def _experiment_rows(args: argparse.Namespace) -> int:
     if max_output_tokens is None:
         if args.method in {"A1", "A2", "B1", "B2", "B3", "B4"}:
             max_output_tokens = 16384
-        elif args.method == "P0" and args.model_key in {"gemma3", "gemma4"}:
+        elif args.method in {"P0", "SB"} and args.model_key in {"gemma3", "gemma4"}:
             max_output_tokens = curve_limits.get(args.chunk_label, spec.max_output_tokens)
         else:
             max_output_tokens = spec.max_output_tokens

@@ -45,3 +45,11 @@ def test_reconstruction_refuses_missing_unit_output() -> None:
 
     with pytest.raises(KeyError, match="missing translation unit"):
         reconstruct(plan, {0: "un"})
+
+
+def test_system_boundary_plan_reuses_lossless_raw_segmentation() -> None:
+    source = "First sentence.\n\nSecond sentence."
+    plan = raw_plan("s1", source, chunk_target_chars=18, method="SB")
+
+    assert plan["method"] == "SB"
+    assert reconstruct(plan, identity(plan)) == source

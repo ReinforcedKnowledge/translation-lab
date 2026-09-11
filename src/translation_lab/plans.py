@@ -38,7 +38,7 @@ class Reconstruction(TypedDict):
 
 class TranslationPlan(TypedDict):
     source_id: str
-    method: Literal["P0", "RAW"]
+    method: Literal["P0", "RAW", "SB"]
     plan_revision: str
     chunk_label: int
     chunk_target_chars: int
@@ -214,6 +214,7 @@ def raw_plan(
     *,
     chunk_label: int = 512,
     chunk_target_chars: int = 2048,
+    method: Literal["RAW", "SB"] = "RAW",
 ) -> TranslationPlan:
     source_units, separators = split_raw_text(source_text, chunk_target_chars)
     units: list[TranslationUnit] = [
@@ -227,7 +228,7 @@ def raw_plan(
             pieces.append(_piece("literal", text=separators[index]))
     plan: TranslationPlan = {
         "source_id": source_id,
-        "method": "RAW",
+        "method": method,
         "plan_revision": RAW_PLAN_REVISION,
         "chunk_label": chunk_label,
         "chunk_target_chars": chunk_target_chars,
@@ -294,7 +295,7 @@ def validate_plan(plan: TranslationPlan, source_text: str | None = None) -> None
 
 
 def processed_output(method: str, kind: UnitKind, raw_output: str) -> str:
-    if method == "RAW":
+    if method in {"RAW", "SB"}:
         return raw_output
     if kind == "prose":
         from translation_lab.blocks import strip_generated_fences

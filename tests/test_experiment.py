@@ -99,3 +99,40 @@ def test_raw_whitespace_output_is_retained_but_not_counted_as_complete() -> None
     assert result.requests[0].translations == ["  "]
     assert result.document.reconstructable_from_unit_evidence is True
     assert result.document.original_run_complete is False
+
+
+def test_system_boundary_uses_raw_units_and_records_sentinel_leaks() -> None:
+    result = asyncio.run(
+        run_document(
+            "s1",
+            "Instruction: write a proof.\n\nSecond paragraph.",
+            "model",
+            "SB",
+            "fr",
+            QueueGenerator(["Instruction : rédigez une preuve.", "Second paragraphe."]),
+            chunk_target_chars=32,
+        )
+    )
+
+    assert result.plan["method"] == "SB"
+    assert all(unit["kind"] == "raw" for unit in result.plan["translation_units"])
+    assert result.requests[0].messages is not None
+    assert [message["role"] for message in result.requests[0].messages or []] == [
+        "system",
+        "user",
+    ]
+    assert result.document.original_run_complete is True
+    assert validate_result(result)["reconstructable"] is True
+
+    leaked = asyncio.run(
+        run_document(
+            "s2",
+            "One.",
+            "model",
+            "SB",
+            "fr",
+            QueueGenerator(["Un. <END_TRANSLATION_PAYLOAD>"]),
+        )
+    )
+    assert leaked.document.failure_reasons == ["sentinel_leak"]
+    assert leaked.requests[0].translation_metrics[0]["sentinel_leak"] is True

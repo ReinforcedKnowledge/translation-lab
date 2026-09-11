@@ -53,7 +53,7 @@ def validate_result(result: ExperimentResult) -> dict[str, Any]:
         document.source_id != plan["source_id"]
         or document.plan_revision != plan["plan_revision"]
         or document.chunk_label != plan["chunk_label"]
-        or plan["method"] != ("RAW" if document.method == "RAW" else "P0")
+        or plan["method"] != (document.method if document.method in {"RAW", "SB"} else "P0")
     ):
         raise ValueError("document identity disagrees with its plan")
     return {
